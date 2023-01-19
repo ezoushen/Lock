@@ -13,11 +13,11 @@ public struct AtomicImpl<T> {
     public typealias ReadTask = () -> T
     public typealias WriteTask = () -> Void
     public let read: (ReadTask) -> T
-    public let write: (@escaping WriteTask) -> Void
+    public let write: (WriteTask) -> Void
 
     public init(
         read: @escaping (ReadTask) -> T,
-        write: @escaping (@escaping WriteTask) -> Void)
+        write: @escaping (WriteTask) -> Void)
     {
         self.read = read
         self.write = write
@@ -151,7 +151,7 @@ public final class Atomic<T> {
 
     /// Performs an atomic write operation on the value.
     /// - Returns: Execution result of the critical area
-    public func write<Result>(_ block: @escaping (inout T) -> Result) -> Result {
+    public func write<Result>(_ block: (inout T) -> Result) -> Result {
         var result: Result!
         impl.write {
             result = block(&self.value)
