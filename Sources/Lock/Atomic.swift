@@ -77,7 +77,7 @@ extension AtomicImpl {
         return AtomicImpl { task in
             queue.sync(execute: task)
         } write: { task in
-            queue.`async`(flags: .barrier, execute: task)
+            queue.sync(flags: .barrier, execute: task)
         }
     }
 
@@ -150,18 +150,24 @@ public final class Atomic<T> {
     }
 
     /// Performs an atomic write operation on the value.
-    public func write(_ block: @escaping (inout T) -> Void) {
+    /// - Returns: Execution result of the critical area
+    public func write<Result>(_ block: @escaping (inout T) -> Result) -> Result {
+        var result: Result!
         impl.write {
-            block(&self.value)
+            result = block(&self.value)
         }
+        return result
     }
 
     /// Performs an atomic read operation on the value.
-    public func read(_ block: @escaping (T) -> Void) {
+    /// /// - Returns: Execution result of the critical area
+    public func read<Result>(_ block: (T) -> Result) -> Result {
+        var result: Result!
         _ = impl.read {
-            block(value)
+            result = block(value)
             return value
         }
+        return result
     }
 }
 

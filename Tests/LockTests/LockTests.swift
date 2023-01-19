@@ -112,3 +112,69 @@ final class RWLockTests: XCTestCase {
         lock.unlock()
     }
 }
+
+final class AtomicTests: XCTestCase {
+    func test_read_usingGCD() {
+        let atomic = Atomic(initialState: 10, impl: .gcd)
+        let result = atomic.read { _ in
+            return 100
+        }
+        XCTAssertEqual(result, 100)
+    }
+
+    func test_write_usingGCD() {
+        let atomic = Atomic(initialState: 10, impl: .gcd)
+        let result = atomic.write { _ in
+            return 100
+        }
+        XCTAssertEqual(result, 100)
+    }
+
+    func test_read_usingRW() {
+        let atomic = Atomic(initialState: 10, impl: .rw)
+        let result = atomic.read { _ in
+            return 100
+        }
+        XCTAssertEqual(result, 100)
+    }
+
+    func test_write_usingRW() {
+        let atomic = Atomic(initialState: 10, impl: .rw)
+        let result = atomic.write { _ in
+            return 100
+        }
+        XCTAssertEqual(result, 100)
+    }
+
+    func test_read_usingMutex() {
+        let atomic = Atomic(initialState: 10, impl: .mutex)
+        let result = atomic.read { _ in
+            return 100
+        }
+        XCTAssertEqual(result, 100)
+    }
+
+    func test_write_usingMutex() {
+        let atomic = Atomic(initialState: 10, impl: .mutex)
+        let result = atomic.write { _ in
+            return 100
+        }
+        XCTAssertEqual(result, 100)
+    }
+
+    func test_read_usingUnfair() {
+        let atomic = Atomic(initialState: 10, impl: .unfair)
+        let result = atomic.read { _ in
+            return 100
+        }
+        XCTAssertEqual(result, 100)
+    }
+
+    func test_write_usingUnfair() {
+        let atomic = Atomic(initialState: 10, impl: .unfair)
+        let result = atomic.write { _ in
+            return 100
+        }
+        XCTAssertEqual(result, 100)
+    }
+}
