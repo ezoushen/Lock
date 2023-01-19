@@ -4,9 +4,9 @@ Lock is a Swift package that provides a set of high-performance and thread-safe 
 ## Features
 
 - `Atomic`: A property wrapper that provides atomic read and write operations for any value type.
-- `MutexLock`: A wrapper for POSIX pthread_mutex_t that provides mutual exclusion for critical sections.
-- `RWLock`: A wrapper for POSIX pthread_rwlock_t that provides read-write locks for shared resources.
-- `UnfairLock`: A wrapper for os_unfair_lock_t on iOS, macOS, tvOS and watchOS and OSAllocatedUnfairLock on iOS 14 and later, macOS 11 and later, tvOS 14 and later, watchOS 7 and later.
+- `MutexLock`: A wrapper for POSIX `pthread_mutex_t` that provides mutual exclusion for critical sections.
+- `RWLock`: A wrapper for POSIX `pthread_rwlock_t` that provides read-write locks for shared resources.
+- `UnfairLock`: A wrapper for `os_unfair_lock_t` on iOS, macOS, tvOS and watchOS and `OSAllocatedUnfairLock` on iOS 14 and later, macOS 11 and later, tvOS 14 and later, watchOS 7 and later.
 
 ## Requirements
 - Swift 5.2 or later
@@ -14,10 +14,10 @@ Lock is a Swift package that provides a set of high-performance and thread-safe 
 
 ## Installation
 
-You can install Lock using the Swift Package Manager. Add the following dependency to your Package.swift file:
+You can install `Lock` using the Swift Package Manager. Add the following dependency to your Package.swift file:
 
 ``` swift
-.package(url: "https://github.com/username/Lock.git", from: "1.0.0")
+.package(url: "https://github.com/ezoushen/Lock.git", from: "1.0.0")
 ```
 
 And then add Lock to your target dependencies:
