@@ -36,7 +36,7 @@ import Lock
 let counter = Atomic(initialState: 0)
 
 DispatchQueue.concurrentPerform(iterations: 100) { index in
-    counter.write { 
+    counter.withMutableValue { 
         $0 += 1
     }
 }

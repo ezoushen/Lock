@@ -7,35 +7,46 @@
 
 import Foundation
 
-
 /// Detail implementation of protecting critical area for reading and writing operation
 public struct AtomicImpl<T> {
     public typealias ReadTask = () -> T
     public typealias WriteTask = () -> Void
+    public typealias WriteResultTask = () -> Any
+
     public let read: (ReadTask) -> T
-    public let write: (WriteTask) -> Void
+    public let write: (@escaping WriteTask) -> Void
+    public let writeResult: (WriteResultTask) -> Any
 
     public init(
         read: @escaping (ReadTask) -> T,
-        write: @escaping (WriteTask) -> Void)
+        write: ((@escaping WriteTask) -> Void)? = nil,
+        writeResult: @escaping (WriteResultTask) -> Any)
     {
         self.read = read
-        self.write = write
+        self.write = write ?? { task in
+            _ = writeResult { task() }
+        }
+        self.writeResult = writeResult
     }
 }
 
 extension AtomicImpl {
     /// Ensure atomicity using a POSIX mutex
     public static var mutex: AtomicImpl<T> {
-        let lock = MutexLock()
+        mutex(type: .default)
+    }
+
+    /// Ensure atomicity using a POSIX mutex
+    public static func mutex(type: MutexLock.LockType) -> AtomicImpl<T> {
+        let lock = MutexLock(type: type)
         return AtomicImpl {
             lock.lock()
             defer { lock.unlock() }
             return $0()
-        } write: {
+        } writeResult: {
             lock.lock()
             defer { lock.unlock() }
-            $0()
+            return $0()
         }
     }
 
@@ -46,10 +57,10 @@ extension AtomicImpl {
             lock.rdlock()
             defer { lock.unlock() }
             return $0()
-        } write: {
+        } writeResult: {
             lock.wrlock()
             defer { lock.unlock() }
-            $0()
+            return $0()
         }
     }
 #if os(macOS) || os(iOS) || os(tvOS) || os(watchOS)
@@ -60,10 +71,10 @@ extension AtomicImpl {
             lock.lock()
             defer { lock.unlock() }
             return $0()
-        } write: {
+        } writeResult: {
             lock.lock()
             defer { lock.unlock() }
-            $0()
+            return $0()
         }
     }
 #endif
@@ -77,6 +88,8 @@ extension AtomicImpl {
         return AtomicImpl { task in
             queue.sync(execute: task)
         } write: { task in
+            queue.async(flags: .barrier, execute: task)
+        } writeResult: { task in
             queue.sync(flags: .barrier, execute: task)
         }
     }
@@ -112,13 +125,13 @@ extension AtomicImpl {
 ///
 ///     // Atomic read operation
 ///
-///     atomic.read { value in
+///     atomic.withValue { value in
 ///         // Do something
 ///     }
 ///
 ///     // Atomic mutating write operation
 ///
-///     atomic.write { value in // value is a inout variable
+///     atomic.withMutableValue { value in // value is a inout variable
 ///         // Do something
 ///     }
 ///
@@ -151,17 +164,22 @@ public final class Atomic<T> {
 
     /// Performs an atomic write operation on the value.
     /// - Returns: Execution result of the critical area
-    public func write<Result>(_ block: (inout T) -> Result) -> Result {
-        var result: Result!
+    public func withMutableValue<Result>(_ block: (inout T) -> Result) -> Result {
+        impl.writeResult {
+            block(&self.value)
+        } as! Result
+    }
+
+    /// Performs an atomic write operation on the value.
+    public func withMutableValue(_ block: @escaping (inout T) -> Void) {
         impl.write {
-            result = block(&self.value)
+            block(&self.value)
         }
-        return result
     }
 
     /// Performs an atomic read operation on the value.
-    /// /// - Returns: Execution result of the critical area
-    public func read<Result>(_ block: (T) -> Result) -> Result {
+    /// - Returns: Execution result of the critical area
+    public func withValue<Result>(_ block: (T) -> Result) -> Result {
         var result: Result!
         _ = impl.read {
             result = block(value)
