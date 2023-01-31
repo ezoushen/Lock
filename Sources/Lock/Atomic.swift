@@ -163,29 +163,51 @@ public final class Atomic<T> {
     }
 
     /// Performs an atomic write operation on the value.
-    /// - Returns: Execution result of the critical area
-    public func withMutableValue<Result>(_ block: (inout T) -> Result) -> Result {
-        impl.writeResult {
-            block(&self.value)
-        } as! Result
-    }
-
-    /// Performs an atomic write operation on the value.
     public func withMutableValue(_ block: @escaping (inout T) -> Void) {
         impl.write {
             block(&self.value)
         }
     }
 
+    /// Performs an atomic write operation on the value.
+    /// - Returns: Execution result of the critical area
+    public func withMutableValue<Result>(_ block: (inout T) throws -> Result) rethrows -> Result {
+        var error: Error?
+        let result: Result! = impl.writeResult {
+            do {
+                return try block(&self.value)
+            } catch let err {
+                error = err
+            }
+            return Optional<Result>.none as Any
+        } as? Result
+        try rethrowing(error: error) { throw $0 }
+        return result
+    }
+
     /// Performs an atomic read operation on the value.
     /// - Returns: Execution result of the critical area
-    public func withValue<Result>(_ block: (T) -> Result) -> Result {
+    public func withValue<Result>(_ block: (T) throws -> Result) rethrows -> Result {
         var result: Result!
+        var error: Error?
+
         _ = impl.read {
-            result = block(value)
+            do {
+                result = try block(value)
+            } catch let err {
+                error = err
+            }
             return value
         }
+
+        try rethrowing(error: error) { throw $0 }
+
         return result
+    }
+
+    private func rethrowing(error: Error?, _ action: (Error) throws -> Void) rethrows {
+        guard let error else { return }
+        try action(error)
     }
 }
 

@@ -194,4 +194,20 @@ final class AtomicTests: XCTestCase {
             XCTAssertEqual(lock.wrappedValue, 110)
         }
     }
+
+    func test_writeBlock_throws() {
+        enum Dummy: Error { case dummy }
+        for impl in [AtomicImpl<Int>.mutex, .rw, .unfair, .gcd] {
+            let lock = Atomic(initialState: 10, impl: impl)
+            XCTAssertThrowsError(try lock.withMutableValue { _ in throw Dummy.dummy})
+        }
+    }
+
+    func test_readBlock_throws() {
+        enum Dummy: Error { case dummy }
+        for impl in [AtomicImpl<Int>.mutex, .rw, .unfair, .gcd] {
+            let lock = Atomic(initialState: 10, impl: impl)
+            XCTAssertThrowsError(try lock.withValue { _ in throw Dummy.dummy})
+        }
+    }
 }
