@@ -212,6 +212,36 @@ final class AtomicTests: XCTestCase {
     }
 }
 
+final class SemTests: XCTestCase {
+    func test_tryWait_shouldReturnFalse() {
+        let sem = Semaphore(value: 2)
+
+        sem.wait()
+        sem.wait()
+
+        XCTAssertFalse(sem.tryWait())
+    }
+
+    func test_tryWait_shouldReturnTrueAfterSignaled() {
+        let sem = Semaphore(value: 2)
+
+        sem.wait()
+        sem.wait()
+        sem.signal()
+
+        XCTAssertTrue(sem.tryWait())
+    }
+
+    func test_tryWait_shouldReturnTrue() {
+        let sem = Semaphore(value: 3)
+
+        sem.wait()
+        sem.wait()
+
+        XCTAssertTrue(sem.tryWait())
+    }
+}
+
 final class CondTests: XCTestCase {
     var cond: ConditionVariable!
     var lock: MutexLock!
