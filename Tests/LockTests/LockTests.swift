@@ -211,3 +211,115 @@ final class AtomicTests: XCTestCase {
         }
     }
 }
+
+final class CondTests: XCTestCase {
+    var cond: ConditionVariable!
+    var lock: MutexLock!
+
+    override func setUp() {
+        cond = ConditionVariable()
+        lock = MutexLock()
+    }
+
+    func test_wait() {
+        var called: Bool = false
+
+        lock.lock()
+
+        DispatchQueue.global().async {
+            called = true
+            self.cond.signal()
+        }
+
+        cond.wait(mutex: lock)
+
+        XCTAssertTrue(called)
+
+        lock.unlock()
+    }
+
+    func test_timedwait_relative_shouldTimeout() {
+        lock.lock()
+
+        DispatchQueue.global().asyncAfter(deadline: .now() + 0.2) {
+            self.cond.signal()
+        }
+
+        let result = cond.wait(for: .milliseconds(100), mutex: lock)
+
+        XCTAssertEqual(result, .timeout)
+
+        lock.unlock()
+    }
+
+    func test_timedwait_relative_shouldSuccess() {
+        lock.lock()
+
+        DispatchQueue.global().asyncAfter(deadline: .now() + .milliseconds(100)) {
+            self.cond.signal()
+        }
+
+        let result = cond.wait(for: .seconds(100), mutex: lock)
+
+        XCTAssertEqual(result, .success)
+
+        lock.unlock()
+    }
+
+    func test_broadcast() {
+        var expectations: [XCTestExpectation] = []
+
+        let calleds = UnsafeMutableBufferPointer<Bool>.allocate(capacity: 5)
+
+        for i in 0...4 {
+            calleds[i] = false
+            let expectation = expectation(description: "\(#function)")
+            expectations.append(expectation)
+            DispatchQueue.global(qos: .userInteractive).async {
+                self.lock.lock()
+                self.cond.wait(mutex: self.lock)
+                calleds[i] = true
+                self.lock.unlock()
+                expectation.fulfill()
+            }
+        }
+
+        DispatchQueue.global(qos: .background).async {
+            self.cond.broadcast()
+        }
+
+        wait(for: expectations, timeout: 10.0)
+
+        XCTAssertTrue(calleds.allSatisfy { $0 })
+    }
+
+    func test_timedwait_shouldSuccess() {
+        let targetDate = Date(timeIntervalSinceNow: 100)
+        lock.lock()
+
+        DispatchQueue.global().asyncAfter(deadline: .now() + .milliseconds(100)) {
+            self.cond.signal()
+        }
+
+        let result = cond.wait(until: targetDate, mutex: lock)
+
+        XCTAssertEqual(result, .success)
+
+        lock.unlock()
+    }
+
+    func test_timedwait_shouldTimeout() {
+        let targetDate = Date(timeIntervalSinceNow: 0.1)
+        lock.lock()
+
+        DispatchQueue.global().asyncAfter(deadline: .now() + .seconds(1)) {
+            self.cond.signal()
+        }
+
+        let result = cond.wait(until: targetDate, mutex: lock)
+
+        XCTAssertEqual(result, .timeout)
+
+        lock.unlock()
+    }
+}

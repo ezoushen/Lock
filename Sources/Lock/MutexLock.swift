@@ -10,12 +10,12 @@ import MachO
 
 @inline(__always)
 func assert(posixCode code: Int32) {
-    Swift.assert(code == 0, "Unexpected pthread mutex error code: \(POSIXErrorCode(rawValue: code)!)")
+    Swift.assert(code == 0, "Unexpected POSIX error code: \(POSIXErrorCode(rawValue: code)!)")
 }
 
 /// Wrapper for `pthread_mutex_lock`
 final class __Mutex {
-    private let _lock: UnsafeMutablePointer<pthread_mutex_t>
+    fileprivate let _lock: UnsafeMutablePointer<pthread_mutex_t>
 
     init(type: Int32) {
         _lock = .allocate(capacity: 1)
@@ -62,6 +62,67 @@ final class __Mutex {
         assert(posixCode: code)
         _lock.deinitialize(count: 1)
         _lock.deallocate()
+    }
+}
+
+/// Wrapper class for POSIX `pthread_cond_t`
+final class __Cond {
+    let _cond: UnsafeMutablePointer<pthread_cond_t>
+
+    init() {
+        self._cond = .allocate(capacity: 1)
+        self._cond.initialize(to: pthread_cond_t())
+
+        let code = pthread_cond_init(_cond, nil)
+        assert(posixCode: code)
+    }
+
+    func wait(mutex: __Mutex) {
+        let code = pthread_cond_wait(_cond, mutex._lock)
+        assert(posixCode: code)
+    }
+
+    func wait(timespec: inout timespec, mutex: __Mutex) -> TimeoutResult {
+        let code = pthread_cond_timedwait(_cond, mutex._lock, &timespec)
+        switch code {
+        case 0:
+            return .success
+        case ETIMEDOUT, EINTR:
+            return .timeout
+        default:
+            assert(posixCode: code)
+            return .timeout
+        }
+    }
+
+    func wait(relativeTimespec: inout timespec, mutex: __Mutex) -> TimeoutResult {
+        let code = pthread_cond_timedwait_relative_np(_cond, mutex._lock, &relativeTimespec)
+        switch code {
+        case 0:
+            return .success
+        case ETIMEDOUT:
+            return .timeout
+        default:
+            assert(posixCode: code)
+            return .timeout
+        }
+    }
+
+    func signal() {
+        let code = pthread_cond_signal(_cond)
+        assert(posixCode: code)
+    }
+
+    func broadcast() {
+        let code = pthread_cond_broadcast(_cond)
+        assert(posixCode: code)
+    }
+
+    deinit {
+        let code = pthread_cond_destroy(_cond)
+        assert(posixCode: code)
+        _cond.deinitialize(count: 1)
+        _cond.deallocate()
     }
 }
 
@@ -115,5 +176,87 @@ public struct MutexLock: SimpleLock {
     /// Tries to acquire the lock and return true if it succeeds.
     public func tryLock() -> Bool {
         _lock.tryLock()
+    }
+}
+
+/// A synchronization primitive that allows threads to wait for a certain condition to be met.
+///
+/// Example usage:
+///     let condition = ConditionVariable()
+///     let lock = MutexLock()
+///
+///     DispatchQueue.global().async {
+///         lock.lock()
+///         condition.wait(mutex: lock)
+///         print("Thread 1: Condition met!")
+///         lock.unlock()
+///     }
+///
+///     DispatchQueue.global().async {
+///         lock.lock()
+///         print("Thread 2: Waiting...")
+///         sleep(2) // Simulate some work
+///         condition.signal()
+///         lock.unlock()
+///     }
+///
+///     // Output:
+///     // Thread 2: Waiting...
+///     // Thread 1: Condition met!
+///
+public struct ConditionVariable {
+
+    /// The underlying condition variable object.
+    let _cond: __Cond
+
+    /// Initializes a new `ConditionVariable`.
+    public init() {
+        _cond = __Cond()
+    }
+
+    /// Waits on the condition variable with the given mutex lock.
+    ///
+    /// If the condition is not met, the current thread will be blocked until another thread signals
+    /// or broadcasts the condition variable with `signal()` or `broadcast()`.
+    ///
+    /// - Parameter mutex: The mutex lock to use for the condition variable.
+    public func wait(mutex: MutexLock) {
+        _cond.wait(mutex: mutex._lock)
+    }
+
+    /// Waits on the condition variable with the given mutex lock until a specified date.
+    ///
+    /// If the condition is not met, the current thread will be blocked until the specified date is reached
+    /// or another thread signals or broadcasts the condition variable with `signal()` or `broadcast()`.
+    ///
+    /// - Parameters:
+    ///   - date: The date to wait until.
+    ///   - mutex: The mutex lock to use for the condition variable.
+    public func wait(until date: Date, mutex: MutexLock) -> TimeoutResult {
+        var timespec = date.timeIntervalSince1970.timespec
+        return _cond.wait(timespec: &timespec, mutex: mutex._lock)
+    }
+
+    /// Waits on the condition variable with the given mutex lock for a specified timespan.
+    ///
+    /// If the condition is not met, the current thread will be blocked until the specified timespan
+    /// has elapsed or another thread signals or broadcasts the condition variable with `signal()` or `broadcast()`.
+    ///
+    /// - Parameters:
+    ///   - timespan: The timespan to wait for.
+    ///   - mutex: The mutex lock to use for the condition variable.
+    public func wait(for timespan: Timespan, mutex: MutexLock) -> TimeoutResult {
+        var timespec = timespan.asTimeIntervalInSeconds.timespec
+        return _cond.wait(relativeTimespec: &timespec, mutex: mutex._lock)
+    }
+
+    /// Wakes up one thread waiting on the condition variable, if there are any.
+    public func signal() {
+        _cond.signal()
+    }
+
+    /// Wakes up all threads waiting on the condition variable.
+    public func broadcast() {
+        _cond.broadcast()
     }
 }
