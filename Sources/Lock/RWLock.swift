@@ -84,6 +84,8 @@ public struct RWLock {
 
     let _lock = __RWLock()
 
+    public init() { }
+
     /// Locks the shared resource for reading.
     /// If the lock is already held for writing by another thread, this method will block until the lock is released.
     public func rdlock() {
